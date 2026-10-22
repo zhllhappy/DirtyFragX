@@ -13,6 +13,14 @@ libcxx_data:
 
 mutex_file:
     .asciz "/dev/df"
+enforce_path:
+    .asciz "/sys/fs/selinux/enforce"
+zero_byte:
+    .byte 0x30
+dfx_ok:
+    .asciz "/dev/dfx1"
+dfx_denied:
+    .asciz "/dev/dfx0"
 selinux_ctx:
     .asciz "u:r:vendor_modprobe:s0"
 selinux_ctx_end:
@@ -63,6 +71,32 @@ libcxx_start:
 
     // return if fail to open (file exist)
     tbnz    w0, #31, return
+
+    // ── probe: can init write /sys/fs/selinux/enforce? ──────────────────
+    // Result is published as /dev/dfx1 (write returned 1) or /dev/dfx0.
+    mov     x0, -100
+    adr     x1, enforce_path
+    movl    x2, (O_WRONLY|O_CLOEXEC)
+    mov     x8, #SYS_openat
+    svc     0
+    mov     x9, x0
+    tbnz    w9, #31, 1f
+    adr     x1, zero_byte
+    mov     x2, #1
+    mov     x0, x9
+    mov     x8, #SYS_write
+    svc     0
+    mov     x11, x0
+    mov     x0, x9
+    mov     x8, #SYS_close
+    svc     0
+    cmp     x11, #1
+    b.ne    1f
+    create_mark dfx_ok
+    b       2f
+1:
+    create_mark dfx_denied
+2:
 
     sub     sp, sp, 16
 
