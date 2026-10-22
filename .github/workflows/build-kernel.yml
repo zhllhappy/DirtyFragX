@@ -43,7 +43,8 @@ jobs:
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) vmlinux
+          KCF="-I$PWD/include/linux -I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc -I$PWD/include/chipset_common/linux -I$PWD/include/chipset_common"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KCFLAGS="$KCF" -j$(nproc) vmlinux
 
       - name: Save symbols
         run: |
