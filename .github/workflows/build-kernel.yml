@@ -22,7 +22,18 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc bison flex libssl-dev libelf-dev
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu bc bison flex libssl-dev libelf-dev python3
+
+      - name: Fetch Huawei's clang toolchain (r416183b1)
+        run: |
+          mkdir -p Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1
+          curl -sSL --retry 3 \
+            "https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-19.0.tar.gz" \
+            -o clang.tar.gz
+          ls -lh clang.tar.gz
+          tar -xzf clang.tar.gz -C Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1 --strip-components=1
+          ls Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1/bin | head
+          Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1/bin/clang --version | head -2
 
       - name: Configure
         run: |
