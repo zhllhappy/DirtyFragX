@@ -55,15 +55,24 @@ jobs:
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          # targeted include dirs only (no include/linux: it shadows
-          # kernel/locking/rtmutex.h and breaks the debug stubs)
-          HW_INCS="-I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc"
-          HW_INCS="$HW_INCS -I$PWD/fs/hw_f2fs -I$PWD/fs/f2fs -I$PWD/platform_source/basicplatform/fs/f2fs"
-          HW_INCS="$HW_INCS -I$PWD/platform_source/cee/drivers/npu_pm -I$PWD/platform_source/cee/drivers/npu_pm/smc"
-          for d in $(find include/chipset_common -type d); do HW_INCS="$HW_INCS -I$PWD/$d"; done
-          echo "includes: $(echo $HW_INCS | wc -w) dirs"
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux 2>&1 | tee /tmp/build.log
-          grep -oE "hardware/[^ ]+ file not found|'[^']+' file not found" /tmp/build.log | sort -u | head -40 || true
+          # GCC/clang response file: thousands of -I args would blow ARG_MAX if
+          # passed as one variable, but @file is expanded by the compiler itself.
+          rm -f /tmp/incs.txt
+          echo "-I$PWD/kernel/locking" > /tmp/incs.txt
+          find . -name '*.h' -printf '%h\n' | sort -u | while IFS= read -r d; do
+            case "$d" in ./include/linux|./include/asm-generic) continue;; esac
+            echo "-I$PWD/${d#./}" >> /tmp/incs.txt
+          done
+          echo "include dirs: $(wc -l < /tmp/incs.txt)"
+          python3 - <<'PYEOF'
+          s = open('Makefile').read()
+          anchor = 'LINUXINCLUDE += -I$(srctree)/mm'
+          s = s.replace(anchor, 'LINUXINCLUDE += @/tmp/incs.txt\n' + anchor, 1)
+          open('Makefile','w').write(s)
+          print('LINUXINCLUDE += @/tmp/incs.txt')
+          PYEOF
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) vmlinux 2>&1 | tee /tmp/build.log
+          grep -oE "'[^']+' file not found" /tmp/build.log | sort -u | head -40 || true
 
       - name: Save symbols
         run: |
