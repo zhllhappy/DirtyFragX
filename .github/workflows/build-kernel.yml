@@ -55,13 +55,17 @@ jobs:
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          # every directory that holds a .h, except include/linux (it would
-          # shadow kernel/locking/rtmutex.h and other local headers)
-          HW_INCS="-I$PWD/kernel/locking"
-          for d in $(find . -name '*.h' -printf '%h\n' | sort -u | grep -v '^\./include/linux$' | grep -v '^\./include/asm-generic$'); do
-            HW_INCS="$HW_INCS -I$PWD/${d#./}"
+          # 5422 include dirs blow past ARG_MAX, so flatten: symlink every
+          # header into one dir and pass a single -I. kernel/locking goes first
+          # so its rtmutex.h wins over include/linux/rtmutex.h.
+          mkdir -p /tmp/hdrs
+          ln -s "$PWD/kernel/locking/rtmutex.h" /tmp/hdrs/rtmutex.h
+          find . -name '*.h' | sort | while IFS= read -r f; do
+            b=$(basename "$f")
+            [ -e "/tmp/hdrs/$b" ] || ln -s "$PWD/${f#./}" "/tmp/hdrs/$b"
           done
-          echo "extra include count: $(echo $HW_INCS | wc -w)"
+          echo "flattened headers: $(ls /tmp/hdrs | wc -l)"
+          HW_INCS="-I/tmp/hdrs -I$PWD/kernel/locking"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux
 
       - name: Save symbols
