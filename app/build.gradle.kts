@@ -7,7 +7,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "df.root"
+        applicationId = "df.rootx"
         minSdk = 31
         targetSdk = 37
         versionCode = 200
