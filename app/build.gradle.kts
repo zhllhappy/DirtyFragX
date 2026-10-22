@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "df.root"
-        minSdk = 32
+        minSdk = 31
         targetSdk = 37
         versionCode = 200
         versionName = "2.0.0"
