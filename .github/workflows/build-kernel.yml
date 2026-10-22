@@ -55,9 +55,13 @@ jobs:
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          HW_INCS="-I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc -I$PWD/mm -I$PWD/fs/proc"
-          for d in $(find include/chipset_common -type d); do HW_INCS="$HW_INCS -I$PWD/$d"; done
-          echo "extra includes: $HW_INCS"
+          # every directory that holds a .h, except include/linux (it would
+          # shadow kernel/locking/rtmutex.h and other local headers)
+          HW_INCS="-I$PWD/kernel/locking"
+          for d in $(find . -name '*.h' -printf '%h\n' | sort -u | grep -v '^\./include/linux$' | grep -v '^\./include/asm-generic$'); do
+            HW_INCS="$HW_INCS -I$PWD/${d#./}"
+          done
+          echo "extra include count: $(echo $HW_INCS | wc -w)"
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux
 
       - name: Save symbols
