@@ -55,18 +55,15 @@ jobs:
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          # 5422 include dirs blow past ARG_MAX, so flatten: symlink every
-          # header into one dir and pass a single -I. kernel/locking goes first
-          # so its rtmutex.h wins over include/linux/rtmutex.h.
-          mkdir -p /tmp/hdrs
-          ln -s "$PWD/kernel/locking/rtmutex.h" /tmp/hdrs/rtmutex.h
-          find . -name '*.h' | sort | while IFS= read -r f; do
-            b=$(basename "$f")
-            [ -e "/tmp/hdrs/$b" ] || ln -s "$PWD/${f#./}" "/tmp/hdrs/$b"
-          done
-          echo "flattened headers: $(ls /tmp/hdrs | wc -l)"
-          HW_INCS="-I/tmp/hdrs -I$PWD/kernel/locking"
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux
+          # targeted include dirs only (no include/linux: it shadows
+          # kernel/locking/rtmutex.h and breaks the debug stubs)
+          HW_INCS="-I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc"
+          HW_INCS="$HW_INCS -I$PWD/fs/hw_f2fs -I$PWD/fs/f2fs -I$PWD/platform_source/basicplatform/fs/f2fs"
+          HW_INCS="$HW_INCS -I$PWD/platform_source/cee/drivers/npu_pm -I$PWD/platform_source/cee/drivers/npu_pm/smc"
+          for d in $(find include/chipset_common -type d); do HW_INCS="$HW_INCS -I$PWD/$d"; done
+          echo "includes: $(echo $HW_INCS | wc -w) dirs"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux 2>&1 | tee /tmp/build.log
+          grep -oE "hardware/[^ ]+ file not found|'[^']+' file not found" /tmp/build.log | sort -u | head -40 || true
 
       - name: Save symbols
         run: |
