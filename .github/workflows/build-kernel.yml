@@ -40,11 +40,25 @@ jobs:
           cd Code_Opensource/kernel
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- merge_charlotte_defconfig
 
+      - name: Inject huawei private include dirs
+        run: |
+          cd Code_Opensource/kernel
+          python3 - <<'PYEOF'
+          s = open('Makefile').read()
+          anchor = 'LINUXINCLUDE += -I$(srctree)/mm'
+          assert anchor in s, 'anchor not found'
+          s = s.replace(anchor, 'LINUXINCLUDE += $(HW_INCS)\n' + anchor, 1)
+          open('Makefile','w').write(s)
+          print('LINUXINCLUDE patched')
+          PYEOF
+
       - name: Build vmlinux
         run: |
           cd Code_Opensource/kernel
-          KCF="-I$PWD/include/linux -I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc -I$PWD/include/chipset_common/linux -I$PWD/include/chipset_common"
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KCFLAGS="$KCF" -j$(nproc) vmlinux
+          HW_INCS="-I$PWD/kernel/locking -I$PWD/kernel/sched -I$PWD/mm/improper_alloc -I$PWD/mm -I$PWD/fs/proc"
+          for d in $(find include/chipset_common -type d); do HW_INCS="$HW_INCS -I$PWD/$d"; done
+          echo "extra includes: $HW_INCS"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HW_INCS="$HW_INCS" -j$(nproc) vmlinux
 
       - name: Save symbols
         run: |
