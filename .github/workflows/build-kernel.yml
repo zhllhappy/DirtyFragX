@@ -1,0 +1,48 @@
+name: Build-Kernel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vmlinux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Fetch kernel source
+        run: |
+          curl -fL --retry 3 -o kernel-src.tgz \
+            "https://github.com/zhllhappy/DirtyFragX/releases/download/kernel-src/kernel-src.tgz"
+          ls -lh kernel-src.tgz
+          tar -xzf kernel-src.tgz
+          ls Code_Opensource/kernel | head
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc bison flex libssl-dev libelf-dev
+
+      - name: Configure
+        run: |
+          cd Code_Opensource/kernel
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- merge_charlotte_defconfig
+
+      - name: Build vmlinux
+        run: |
+          cd Code_Opensource/kernel
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) vmlinux
+
+      - name: Save symbols
+        run: |
+          cd Code_Opensource/kernel
+          ls -l vmlinux
+          nm -n vmlinux | wc -l
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vmlinux
+          path: |
+            Code_Opensource/kernel/vmlinux
+          if-no-files-found: error
