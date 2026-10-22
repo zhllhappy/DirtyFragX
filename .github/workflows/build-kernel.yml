@@ -26,14 +26,14 @@ jobs:
 
       - name: Fetch Huawei's clang toolchain (r416183b1)
         run: |
-          mkdir -p Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1
+          mkdir -p prebuilts/clang/host/linux-x86/clang-r416183b1
           curl -sSL --retry 3 \
             "https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.0.tar.gz" \
             -o clang.tar.gz
           ls -lh clang.tar.gz
-          tar -xzf clang.tar.gz -C Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1 --strip-components=1
-          ls Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1/bin | head
-          Code_Opensource/prebuilts/clang/host/linux-x86/clang-r416183b1/bin/clang --version | head -2
+          tar -xzf clang.tar.gz -C prebuilts/clang/host/linux-x86/clang-r416183b1 --strip-components=1
+          ls prebuilts/clang/host/linux-x86/clang-r416183b1/bin | head
+          prebuilts/clang/host/linux-x86/clang-r416183b1/bin/clang --version | head -2
 
       - name: Configure
         run: |
